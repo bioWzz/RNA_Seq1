@@ -1,0 +1,43 @@
+# got the read counts from the bam file
+rm(list=ls())
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("Rsubread")
+library(Rsubread)
+# .libPaths()
+# "/Library/Frameworks/R.framework/Versions/3.3/Resources/library"
+# "/Library/Frameworks/R.framework/Versions/3.3/Resources/library/Rsubread/extdata/RNASeq0h.sort.bam"
+RNASeq0h<- system.file("extdata","RNASeq0h.sort.bam",package="Rsubread")
+RNASeq12h<- system.file("extdata","RNASeq12h.sort.bam",package="Rsubread")
+ann <- read_delim("~/Downloads/ann.txt","\t", escape_double = FALSE, trim_ws = TRUE)
+RNASeq0hALL <- featureCounts(RNASeq0h,annot.ext=ann)
+RNASeq12hALL <- featureCounts(RNASeq12h,annot.ext=ann)
+Count=as.data.frame(cbind(RNASeq0hALL$counts,RNASeq12hALL$counts))   
+colnames(Count)=c("RNASeq0h","RNASeq12h")
+
+# calculated the expression values of genes
+#library(edgeR)
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("DESeq2")
+
+library(DESeq2)
+grp <- as.factor(colnames(Count))
+dds <- DESeqDataSetFromMatrix(Count, colData=data.frame(grp), design=~grp) ##这里的colData必须是一个DataFrame或者data.frame。每一行都对应着counts中的一列。design中的公式和limma中的方法一致。
+dds <- DESeq(dds)
+res <- as.data.frame(results(dds))
+res<-cbind(rownames(res),res)
+colnames(res)[1]=c("geneid")
+
+Countnew<-cbind(rownames(Count),Count)
+colnames(Countnew)[1]=c("geneid")
+allgene=merge(Countnew,res,by="geneid")
+#allgene<-na.omit(allgene)
+library(dplyr)
+ensemblgeneid <- read_delim("~/Downloads/ensemblgeneid54.txt","\t", escape_double = FALSE, trim_ws = TRUE)
+colnames(ensemblgeneid)[1]=c("geneid")
+
+symbolgene=left_join(allgene,ensemblgeneid,by="geneid")
+
+write.table(symbolgene, file = "~/Downloads/RNASeqResult.txt", append = FALSE, quote = F, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE, qmethod = c("escape", "double"),
+            fileEncoding = "")
